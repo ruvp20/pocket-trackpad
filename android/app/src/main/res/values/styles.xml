@@ -2,10 +2,10 @@
     <string name="app_name">Pocket Trackpad</string>
     <style name="AppTheme" parent="android:style/Theme.Material.NoActionBar">
         <item name="android:fontFamily">sans-serif</item>
-        <item name="android:windowBackground">#0E161A</item>
-        <item name="android:statusBarColor">#0E161A</item>
-        <item name="android:navigationBarColor">#0E161A</item>
-        <item name="android:colorAccent">#99E8C9</item>
+        <item name="android:windowBackground">#08090B</item>
+        <item name="android:statusBarColor">#08090B</item>
+        <item name="android:navigationBarColor">#08090B</item>
+        <item name="android:colorAccent">#63C5FF</item>
         <item name="android:windowLightStatusBar">false</item>
     </style>
 </resources>

@@ -4,9 +4,11 @@ import CoreImage.CIFilterBuiltins
 import SwiftUI
 
 final class MacModel: ObservableObject {
+    @Published var wifi = false
     @Published private(set) var state = Receiver.State.stopped
     @Published private(set) var trusted = AXIsProcessTrusted()
     @Published private(set) var address = ""
+    @Published private(set) var availableAddresses: [String] = []
     @Published private(set) var pairingCode = ""
     @Published private(set) var qr: NSImage?
 
@@ -94,11 +96,15 @@ final class MacModel: ObservableObject {
             if !currentTrust { input.reset() }
             trusted = currentTrust
         }
-        let next = Self.localAddress()
-        if address != next {
-            address = next
-            updateQR()
-        }
+        let choices = Self.localAddresses()
+        if choices != availableAddresses { availableAddresses = choices }
+        if !choices.contains(address) { selectAddress(choices.first ?? "") }
+    }
+
+    func selectAddress(_ next: String) {
+        guard address != next else { return }
+        address = next
+        updateQR()
     }
 
     private func updateQR() {
@@ -117,9 +123,9 @@ final class MacModel: ObservableObject {
         qr = NSImage(cgImage: bitmap, size: quietZone.extent.size)
     }
 
-    private static func localAddress() -> String {
+    private static func localAddresses() -> [String] {
         var first: UnsafeMutablePointer<ifaddrs>?
-        guard getifaddrs(&first) == 0, let first else { return "" }
+        guard getifaddrs(&first) == 0, let first else { return [] }
         defer { freeifaddrs(first) }
         var addresses = [(String, String)]()
         var next: UnsafeMutablePointer<ifaddrs>? = first
@@ -138,18 +144,21 @@ final class MacModel: ObservableObject {
                 if !result.hasPrefix("169.254.") { addresses.append((interface, result)) }
             }
         }
-        return addresses.sorted { $0.0.localizedStandardCompare($1.0) == .orderedAscending }.first?.1 ?? ""
+        return addresses.sorted {
+            if $0.0.hasPrefix("en") != $1.0.hasPrefix("en") { return $0.0.hasPrefix("en") }
+            return $0.0.localizedStandardCompare($1.0) == .orderedAscending
+        }.map { $0.1 }
     }
 }
 
 struct MacView: View {
     @ObservedObject var model: MacModel
-    private let canvas = Color(red: 0.055, green: 0.086, blue: 0.102)
-    private let surface = Color(red: 0.086, green: 0.129, blue: 0.149)
+    private let canvas = Color(red: 0.032, green: 0.035, blue: 0.043)
+    private let surface = Color(red: 0.09, green: 0.095, blue: 0.105)
     private let edge = Color(red: 0.17, green: 0.23, blue: 0.25)
     private let primaryText = Color(red: 0.93, green: 0.97, blue: 0.97)
     private let secondaryText = Color(red: 0.65, green: 0.73, blue: 0.75)
-    private let accent = Color(red: 0.60, green: 0.91, blue: 0.79)
+    private let accent = Color(red: 0.39, green: 0.77, blue: 1)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
@@ -159,12 +168,35 @@ struct MacView: View {
                     Text("Use your Android phone to control this Mac.").foregroundStyle(secondaryText)
                 }
                 Spacer()
-                Button(model.running ? "Pause receiver" : "Start receiver") {
+                if model.wifi { Button(model.running ? "Pause receiver" : "Start receiver") {
                     if model.running { model.stop() } else { model.start() }
                 }
-                .controlSize(.large)
+                .controlSize(.large) }
             }
 
+            Picker("Connection", selection: $model.wifi) {
+                Text("Bluetooth").tag(false)
+                Text("Wi-Fi").tag(true)
+            }.pickerStyle(.segmented)
+            .onChange(of: model.wifi) { selected in
+                if selected { model.start() } else { model.stop() }
+            }
+
+            if !model.wifi {
+                VStack(alignment: .leading, spacing: 16) {
+                    Label("Pair directly with this Mac", systemImage: "computermouse")
+                        .font(.title2.weight(.semibold))
+                    Text("On Android, tap Connect → Pair with Bluetooth → Make phone visible. In this Mac’s Bluetooth settings, select your phone and confirm the pairing prompts.")
+                        .foregroundStyle(secondaryText).fixedSize(horizontal: false, vertical: true)
+                    Button("Open Bluetooth Settings") {
+                        if let url = URL(string: "x-apple.systempreferences:com.apple.BluetoothSettings") {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }.controlSize(.large)
+                }.padding(22).frame(maxWidth: .infinity, alignment: .leading)
+                    .background(surface, in: RoundedRectangle(cornerRadius: 16))
+                Spacer(minLength: 0)
+            } else {
             HStack(alignment: .top, spacing: 24) {
                 pairingTile
                 VStack(alignment: .leading, spacing: 14) {
@@ -175,6 +207,11 @@ struct MacView: View {
                     Text(model.statusDetail).foregroundStyle(secondaryText).fixedSize(horizontal: false, vertical: true)
                     if model.running, !model.address.isEmpty {
                         VStack(alignment: .leading, spacing: 5) {
+                            if model.availableAddresses.count > 1 {
+                                Picker("Network address", selection: Binding(get: { model.address }, set: model.selectAddress)) {
+                                    ForEach(model.availableAddresses, id: \.self) { Text($0).tag($0) }
+                                }
+                            }
                             Text("Mac address").font(.caption).foregroundStyle(secondaryText)
                             Text("\(model.address):\(Wire.port)").font(.system(.callout, design: .monospaced))
                                 .textSelection(.enabled)
@@ -215,9 +252,10 @@ struct MacView: View {
             }
             .padding(14)
             .background(surface, in: RoundedRectangle(cornerRadius: 12))
+            }
         }
         .padding(26)
-        .frame(width: 584, height: 414)
+        .frame(width: 584, height: 500)
         .background(canvas)
         .foregroundStyle(primaryText)
         .preferredColorScheme(.dark)

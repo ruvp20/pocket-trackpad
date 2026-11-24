@@ -1,19 +1,30 @@
 # Pocket Trackpad
 
-Use an Android phone as a wireless trackpad for your Mac. The Android app recognizes multi-touch gestures and sends them over Wi-Fi to a native macOS receiver. Your gestures stay on the local network.
-
-**Requirements:** macOS 13 or later on Apple silicon or Intel, Android 7.0 or later, and a local IPv4 network that allows the devices to reach each other.
+Use your Android phone to point, click, scroll, drag and switch Spaces on a Mac. Pair directly over Bluetooth, or use the Mac receiver over Wi-Fi. The touch surface lights up under each fingertip. Open **Controls** for navigation and **Settings** to adjust pointer speed, gesture behavior and focus mode.
 
 ## Install and pair
 
-1. Download **PocketTrackpad-macOS.zip** and **PocketTrackpad-Android.apk** from the [v0.1.0 release](https://github.com/ruvp20/pocket-trackpad/releases/tag/v0.1.0).
-2. On your Mac, extract the ZIP, move **Pocket Trackpad.app** to **Applications**, and open it. The preview build is ad-hoc signed and has no Apple notarization. If macOS blocks the first launch, open **System Settings → Privacy & Security → Open Anyway** after the first launch attempt, or [build from source](#build-from-source). If macOS asks whether to accept incoming connections, allow the app. [Apple’s first-launch instructions](https://support.apple.com/en-us/102445)
-3. In Pocket Trackpad on your Mac, click **Open Settings** and enable **Pocket Trackpad** under **Privacy & Security → Accessibility**. The receiver window shows when permission is active.
-4. Open the APK on your Android phone. If prompted, permit the browser or file manager you used to install this APK. The APK is a debug-signed preview build.
-5. Put the phone and Mac on the **same Wi-Fi**. The Mac can also use Ethernet connected to the same router. Open Pocket Trackpad on your phone, tap **Scan Mac QR code**, and point it at the Mac window. For manual pairing, enter the Mac address and current 32-character pairing code as displayed.
-6. Slide one finger over the trackpad area to move the pointer. Open **Gestures** in the Android app for a guide. Keep the Mac receiver running and the Android app in the foreground while using it.
+Download the [Android APK](https://github.com/ruvp20/pocket-trackpad/releases/download/v0.2.0/PocketTrackpad-Android.apk) on your phone and open it. Allow installation from the browser or file manager if Android asks. This preview is signed with the same debug key as v0.1.0.
+
+### Bluetooth
+
+1. Use Android 9 or later on a phone that supports Android’s Bluetooth HID Device profile. Turn on Bluetooth on both devices and open **System Settings → Bluetooth** on the Mac.
+2. On Android tap **Connect → Pair with Bluetooth**. Allow **Nearby devices** if prompted.
+3. If the Mac is already listed, tap its name. For first-time pairing, tap **Make phone visible**, allow the system prompt, and select your phone under **Nearby Devices** on the Mac. Confirm the system pairing prompts and approve the computer in Pocket Trackpad.
+4. Look for **Bluetooth · [computer name]** on the phone, then slide one finger on the pad. If the devices paired but the pad is still waiting, tap **Choose paired computer** and select the Mac. Keep Pocket Trackpad in the foreground during use.
+
+The Mac receives standard Bluetooth mouse, keyboard and volume reports directly. The Mac companion and Accessibility permission are only needed for Wi-Fi. In Bluetooth mode, **Controls → Keyboard** types US-layout text and offers Return, Escape, Tab, Space and Delete. **Controls** also includes volume and mute buttons.
+
+### Wi-Fi
+
+1. Use Android 7 or later and macOS 13 or later. Download the [Mac receiver ZIP](https://github.com/ruvp20/pocket-trackpad/releases/download/v0.2.0/PocketTrackpad-macOS.zip), extract it, move **Pocket Trackpad.app** to Applications and open it. The universal Mac preview is ad-hoc signed. [Apple’s first-launch instructions](https://support.apple.com/en-us/102445)
+2. Put both devices on the same local network. On the Mac select **Wi-Fi**, open **Accessibility** settings from the receiver, and grant Pocket Trackpad access. Allow incoming connections if the firewall asks.
+3. If multiple network addresses appear, select the address of the Wi-Fi or Ethernet interface on your phone’s network. The QR updates immediately.
+4. On Android tap **Connect → Wi-Fi · scan or enter code** and scan the Mac QR, or enter the displayed IPv4 address and pairing code. Keep the receiver open.
 
 ## Gestures
+
+Bluetooth and Wi-Fi share the mappings below. Bluetooth scrolls in wheel steps and opens Spotlight for the four-finger pinch. Preview-only rotation uses the Wi-Fi receiver.
 
 | Android gesture | Mac action |
 | --- | --- |
@@ -61,12 +72,13 @@ Run `./scripts/test.sh` from the repository root on macOS with a JDK available. 
 
 ## Pairing and troubleshooting
 
-- **Phone cannot reach Mac.** Check that the Mac window says **Ready to pair**. Guest networks may isolate devices. Disable VPN routing for this local connection if needed. If the Mac has several active adapters, use its same-network IPv4 address from **System Settings → Network** for manual pairing. The receiver uses TCP port **58432**.
+- **Bluetooth pairing stalls.** Keep the phone app open. Check that Bluetooth is on and Nearby devices permission is granted. If another Bluetooth input app is running, close it and retry. The Android manufacturer must enable the HID Device profile. On unsupported phones select Wi-Fi.
+- **Phone cannot reach Mac on Wi-Fi.** Check that the Mac window says **Ready to pair**. Guest networks may isolate devices. Disable VPN routing for this local connection if needed. If the Mac has several active adapters, use its same-network IPv4 address from **System Settings → Network** for manual pairing. The receiver uses TCP port **58432**.
 - **Connection works, but the cursor does not move.** Check **Privacy & Security → Accessibility**. If you replaced or rebuilt the Mac app, remove its obsolete Accessibility entry, reopen the app, and grant access again.
 - **Pairing rejected or the phone is busy.** Scan the QR currently shown on the Mac. One phone controls the receiver at a time. **New pairing code** disconnects the current phone and invalidates the old code.
 - **Android cannot install the APK.** Android rejects updating an installed copy that has a different signing key. Uninstall the old copy first, or reinstall an APK signed with the same key.
 
-Each receiver start generates a random 128-bit pairing secret. On connection, each side generates a fresh random challenge, and the two sides use HKDF-SHA256 to derive separate AES-GCM traffic keys. Both sides authenticate by opening the other side's first encrypted frame. The receiver accepts a single authenticated phone at a time and releases an active drag when the phone disconnects. The QR contains the pairing secret. Keep it on your Mac screen and use the receiver on a trusted local network.
+In Wi-Fi mode, each receiver start generates a random 128-bit pairing secret. On connection, each side generates a fresh random challenge, and the two sides use HKDF-SHA256 to derive separate AES-GCM traffic keys. Both sides authenticate by opening the other side's first encrypted frame. The receiver accepts a single authenticated phone at a time and releases an active drag when the phone disconnects. The QR contains the pairing secret. Keep it on your Mac screen and use the receiver on a trusted local network.
 
 ## License
 

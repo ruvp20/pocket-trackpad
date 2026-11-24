@@ -56,7 +56,7 @@ final class PadView extends View {
     @Override protected void onSizeChanged(int w, int h, int oldWidth, int oldHeight) {
         super.onSizeChanged(w, h, oldWidth, oldHeight);
         bounds.set(density, density, w - density, h - density);
-        float step = 16 * density;
+        float step = 19 * density;
         int columns = Math.max(0, (int) ((w - 13 * density) / step));
         int rows = Math.max(0, (int) ((h - 13 * density) / step));
         grid = new float[columns * rows * 2];
@@ -84,9 +84,18 @@ final class PadView extends View {
         ink.setColor(isFocused() ? MainActivity.ACCENT : MainActivity.EDGE);
         canvas.drawRoundRect(bounds, radius, radius, ink);
         for (int i = 0; i < visibleTouches; i++) {
-            ink.setColor(MainActivity.TOUCH_WASH);
+            // Light the grid around each contact, keeping the response under the fingertip.
+            float reach = 62 * density;
             ink.setStyle(Paint.Style.FILL);
-            canvas.drawCircle(touchX[i], touchY[i], 18 * density, ink);
+            for (int point = 0; point < grid.length; point += 2) {
+                float dx = grid[point] - touchX[i], dy = grid[point + 1] - touchY[i];
+                float squared = dx * dx + dy * dy;
+                if (squared >= reach * reach) continue;
+                float glow = 1 - squared / (reach * reach);
+                ink.setColor(MainActivity.ACCENT);
+                ink.setAlpha((int) (190 * glow));
+                canvas.drawCircle(grid[point], grid[point + 1], (1 + 2 * glow) * density, ink);
+            }
             ink.setColor(MainActivity.ACCENT);
             canvas.drawCircle(touchX[i], touchY[i], 3 * density, ink);
         }

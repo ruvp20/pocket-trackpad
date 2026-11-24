@@ -15,7 +15,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.center()
         window.makeKeyAndOrderFront(nil)
         self.window = window
-        model.start()
         NSApp.activate(ignoringOtherApps: true)
     }
 

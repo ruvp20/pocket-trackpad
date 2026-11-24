@@ -13,7 +13,7 @@ cleanup() {
 trap cleanup EXIT
 java_dir="$root/android/app/src/main/java/io/github/ruvp20/pockettrackpad"
 javac --release 17 -d "$temp" \
-  "$java_dir/Wire.java" "$java_dir/PadConnection.java" "$java_dir/GestureTracker.java" "$root/tests/Smoke.java"
+  "$java_dir/Wire.java" "$java_dir/HidReports.java" "$java_dir/PadConnection.java" "$java_dir/GestureTracker.java" "$root/tests/Smoke.java"
 xcrun swiftc -swift-version 5 "$root/macos/Sources/Wire.swift" \
   "$root/macos/Sources/Receiver.swift" "$root/tests/main.swift" -o "$temp/receiver"
 

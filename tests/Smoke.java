@@ -10,6 +10,16 @@ public final class Smoke {
     private Smoke() {}
 
     public static void main(String[] arguments) throws Exception {
+        List<String> packets = new ArrayList<>();
+        HidReports reports = new HidReports((id, payload) -> packets.add(id + Arrays.toString(payload)));
+        reports.send(Wire.DRAG_START, 0, 0);
+        reports.send(Wire.MOVE, -1250, 2250);
+        reports.send(Wire.DRAG_END, 0, 0);
+        reports.send(Wire.ACTION, Wire.MISSION_CONTROL, 0);
+        reports.media(4);
+        check(packets.equals(Arrays.asList("1[1, 0, 0, 0, 0, 0, 0]", "1[1, -1, -1, 2, 0, 0, 0]",
+                "1[0, 0, 0, 0, 0, 0, 0]", "2[1, 82]", "2[0, 0]", "3[4]", "3[0]")), "Bluetooth input reports");
+        check(HidReports.stroke('A') == 0x204 && HidReports.stroke('#') == 0x220, "US keyboard mapping");
         testGestures();
         testConnection(Integer.parseInt(arguments[0]));
     }
