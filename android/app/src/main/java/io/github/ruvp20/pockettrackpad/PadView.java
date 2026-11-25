@@ -2,9 +2,14 @@ package io.github.ruvp20.pockettrackpad;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.content.res.Configuration;
+import android.animation.ValueAnimator;
+import android.os.Build;
+import android.provider.Settings;
+import java.util.Arrays;
 import android.graphics.Canvas;
 import android.graphics.Paint;
-import android.graphics.RectF;
+import android.graphics.Path;
 import android.os.SystemClock;
 import android.view.MotionEvent;
 import android.view.View;
@@ -13,14 +18,18 @@ import android.view.accessibility.AccessibilityNodeInfo;
 @SuppressLint("ViewConstructor") // The trackpad is created in code with an input sink.
 final class PadView extends View {
     private final Paint ink = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final RectF bounds = new RectF();
+    private final Path outline = new Path();
+    private boolean keyboardCorner;
     private float[] grid = new float[0];
     private final float density;
     private final GestureTracker tracker;
     private final GestureTracker.Output output;
     private final Runnable pendingTap;
-    private final float[] touchX = new float[4], touchY = new float[4];
+    private final float[] touchX = new float[5], touchY = new float[5];
     private int visibleTouches;
+    private float[] light = new float[0];
+    private long lastFrame;
+    private boolean animateLight = true;
 
     PadView(Context context, GestureTracker.Output output) {
         super(context);
@@ -30,6 +39,7 @@ final class PadView extends View {
             if (command == Wire.CLICK) performClick();
             else output.send(command, x, y);
         });
+        updateOrientation(getResources().getConfiguration());
         pendingTap = () -> tracker.advance(SystemClock.uptimeMillis());
         setFocusable(true);
         setClickable(true);
@@ -37,14 +47,58 @@ final class PadView extends View {
         setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_YES);
     }
 
+    private void updateOrientation(Configuration configuration) {
+        tracker.setLandscape(configuration.orientation == Configuration.ORIENTATION_LANDSCAPE);
+    }
+
+    @Override protected void onConfigurationChanged(Configuration configuration) {
+        super.onConfigurationChanged(configuration);
+        updateOrientation(configuration);
+        reset();
+    }
+
     void configure(boolean natural, boolean threeDrag, boolean pageSwipes, float speed) {
         tracker.configure(natural, threeDrag, pageSwipes, speed);
+    }
+
+    void reserveKeyboardCorner() {
+        keyboardCorner = true;
+        updateOutline(getWidth(), getHeight());
+    }
+
+    private void updateOutline(int width, int height) {
+        outline.rewind();
+        if (width <= 2 * density || height <= 2 * density) return;
+        float left = density, top = density, right = width - density, bottom = height - density;
+        float radius = Math.min(32 * density, Math.min(right - left, bottom - top) / 3);
+        if (!keyboardCorner || Math.min(width, height) < 100 * density) {
+            outline.addRoundRect(left, top, right, bottom, radius, radius, Path.Direction.CW);
+            return;
+        }
+        float notch = 60 * density, lip = 12 * density, scoop = 32 * density;
+        outline.moveTo(left + radius, top);
+        outline.lineTo(right - radius, top);
+        outline.quadTo(right, top, right, top + radius);
+        outline.lineTo(right, bottom - notch - lip);
+        outline.quadTo(right, bottom - notch, right - lip, bottom - notch);
+        outline.lineTo(right - notch + scoop, bottom - notch);
+        outline.cubicTo(right - notch + scoop * 0.45f, bottom - notch,
+                right - notch, bottom - notch + scoop * 0.45f, right - notch, bottom - notch + scoop);
+        outline.lineTo(right - notch, bottom - lip);
+        outline.quadTo(right - notch, bottom, right - notch - lip, bottom);
+        outline.lineTo(left + radius, bottom);
+        outline.quadTo(left, bottom, left, bottom - radius);
+        outline.lineTo(left, top + radius);
+        outline.quadTo(left, top, left + radius, top);
+        outline.close();
     }
 
     void reset() {
         removeCallbacks(pendingTap);
         tracker.cancel();
         visibleTouches = 0;
+        Arrays.fill(light, 0);
+        lastFrame = 0;
         invalidate();
     }
 
@@ -55,11 +109,12 @@ final class PadView extends View {
 
     @Override protected void onSizeChanged(int w, int h, int oldWidth, int oldHeight) {
         super.onSizeChanged(w, h, oldWidth, oldHeight);
-        bounds.set(density, density, w - density, h - density);
+        updateOutline(w, h);
         float step = 19 * density;
         int columns = Math.max(0, (int) ((w - 13 * density) / step));
         int rows = Math.max(0, (int) ((h - 13 * density) / step));
-        grid = new float[columns * rows * 2];
+        light = new float[columns * rows];
+        grid = new float[light.length * 2];
         int index = 0;
         for (int row = 1; row <= rows; row++) {
             for (int column = 1; column <= columns; column++) {
@@ -71,42 +126,52 @@ final class PadView extends View {
 
     @Override protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        float w = getWidth(), h = getHeight(), radius = 20 * density;
         ink.setStyle(Paint.Style.FILL);
         ink.setColor(MainActivity.PAD);
-        canvas.drawRoundRect(bounds, radius, radius, ink);
+        canvas.drawPath(outline, ink);
+        canvas.save();
+        canvas.clipPath(outline);
         ink.setColor(MainActivity.GRID);
         ink.setStrokeWidth(1.7f * density);
         ink.setStrokeCap(Paint.Cap.ROUND);
         canvas.drawPoints(grid, ink);
+        drawContactLight(canvas);
+        canvas.restore();
         ink.setStyle(Paint.Style.STROKE);
         ink.setStrokeWidth(density);
         ink.setColor(isFocused() ? MainActivity.ACCENT : MainActivity.EDGE);
-        canvas.drawRoundRect(bounds, radius, radius, ink);
-        for (int i = 0; i < visibleTouches; i++) {
-            // Light the grid around each contact, keeping the response under the fingertip.
-            float reach = 62 * density;
-            ink.setStyle(Paint.Style.FILL);
-            for (int point = 0; point < grid.length; point += 2) {
-                float dx = grid[point] - touchX[i], dy = grid[point + 1] - touchY[i];
-                float squared = dx * dx + dy * dy;
-                if (squared >= reach * reach) continue;
-                float glow = 1 - squared / (reach * reach);
-                ink.setColor(MainActivity.ACCENT);
-                ink.setAlpha((int) (190 * glow));
-                canvas.drawCircle(grid[point], grid[point + 1], (1 + 2 * glow) * density, ink);
+        canvas.drawPath(outline, ink);
+    }
+
+    private void drawContactLight(Canvas canvas) {
+        long now = SystemClock.uptimeMillis();
+        long elapsed = lastFrame == 0 ? 16 : Math.min(64, now - lastFrame);
+        lastFrame = now;
+        float rise = animateLight ? (float) -Math.expm1(-elapsed / 80.0) : 1;
+        float decay = animateLight ? (float) -Math.expm1(-elapsed / 145.0) : 1;
+        float radius = 74 * density;
+        float radiusSquared = radius * radius;
+        boolean unsettled = false;
+        ink.setStyle(Paint.Style.FILL);
+        ink.setColor(MainActivity.ACCENT);
+        for (int dot = 0; dot < light.length; dot++) {
+            float x = grid[2 * dot], y = grid[2 * dot + 1];
+            float target = 0;
+            for (int i = 0; i < visibleTouches; i++) {
+                float dx = x - touchX[i], dy = y - touchY[i];
+                float proximity = Math.max(0, 1 - (dx * dx + dy * dy) / radiusSquared);
+                target = Math.max(target, proximity * proximity);
             }
-            ink.setColor(MainActivity.ACCENT);
-            canvas.drawCircle(touchX[i], touchY[i], 3 * density, ink);
+            float difference = target - light[dot];
+            light[dot] += difference * (difference > 0 ? rise : decay);
+            if (Math.abs(target - light[dot]) < 0.004f) light[dot] = target;
+            else unsettled = true;
+            if (light[dot] <= 0.004f) continue;
+            ink.setAlpha(Math.round(225 * light[dot]));
+            canvas.drawCircle(x, y, density * (0.9f + 2.6f * light[dot]), ink);
         }
-        if (visibleTouches == 0) {
-            ink.setStyle(Paint.Style.STROKE);
-            ink.setStrokeWidth(1.25f * density);
-            ink.setColor(MainActivity.SUBTLE);
-            for (int offset = -1; offset <= 1; offset++) {
-                canvas.drawCircle(w * 0.5f + offset * 16 * density, h * 0.5f, 3.3f * density, ink);
-            }
-        }
+        if (unsettled) postInvalidateOnAnimation();
+        else lastFrame = 0;
     }
 
     @SuppressLint("ClickableViewAccessibility") // Recognized taps call performClick via the tracker.
@@ -133,6 +198,9 @@ final class PadView extends View {
         long time = event.getEventTime();
         switch (action) {
             case MotionEvent.ACTION_DOWN:
+                animateLight = Build.VERSION.SDK_INT >= 26 ? ValueAnimator.areAnimatorsEnabled()
+                        : Settings.Global.getFloat(getContext().getContentResolver(),
+                                Settings.Global.ANIMATOR_DURATION_SCALE, 1) > 0;
                 getParent().requestDisallowInterceptTouchEvent(true);
                 tracker.begin(time, x / density, y / density, getWidth() / density);
                 break;

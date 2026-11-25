@@ -12,6 +12,8 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.graphics.Insets;
+import android.content.res.Configuration;
+import android.widget.ImageButton;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.RippleDrawable;
@@ -43,13 +45,13 @@ import java.util.Arrays;
 import java.util.Locale;
 
 public final class MainActivity extends ComponentActivity implements PadConnection.Listener {
-    private static final int CANVAS = 0xff08090b;
-    private static final int CARD = 0xff202124;
+    private static final int CANVAS = 0xff050607;
+    private static final int CARD = 0xff1a1b1e;
     private static final int TEXT = 0xfff6f7f9;
     private static final int MUTED = 0xffb4b8c0;
-    static final int PAD = 0xff141518;
+    static final int PAD = 0xff131416;
     static final int EDGE = 0xff35383d;
-    static final int GRID = 0xff27343e;
+    static final int GRID = 0xff202e35;
     static final int SUBTLE = 0xff607887;
     static final int ACCENT = 0xff63c5ff;
     static final int TOUCH_WASH = 0x4463c5ff;
@@ -98,14 +100,20 @@ public final class MainActivity extends ComponentActivity implements PadConnecti
             });
 
     @Override protected void onCreate(Bundle savedInstanceState) {
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
         super.onCreate(savedInstanceState);
+        if (Build.VERSION.SDK_INT >= 33) setRecentsScreenshotEnabled(false);
         preferences = getSharedPreferences("gestures", MODE_PRIVATE);
         if (Build.VERSION.SDK_INT >= 30) getWindow().setDecorFitsSystemWindows(false);
         showPad();
+        updates = new AppUpdates(this);
     }
+
+    private AppUpdates updates;
 
     @Override protected void onResume() {
         super.onResume();
+        updates.check(false);
         if (resumePairing && pairing != null) {
             resumePairing = false;
             connect(pairing);
@@ -143,6 +151,7 @@ public final class MainActivity extends ComponentActivity implements PadConnecti
     }
 
     private void closeConnection() {
+        dismissSheet();
         if (pad != null) {
             pad.reset();
             pad = null;
@@ -190,6 +199,7 @@ public final class MainActivity extends ComponentActivity implements PadConnecti
         boolean hasCamera = getPackageManager().hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY);
         if (hasCamera && !connecting) {
             button(page, "Scan Mac QR code", true, () -> scan.launch(new ScanOptions()
+                    .setCaptureActivity(SecureScannerActivity.class)
                     .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
                     .setPrompt("Scan the Pocket Trackpad code on your Mac")
                     .setOrientationLocked(false)
@@ -242,28 +252,43 @@ public final class MainActivity extends ComponentActivity implements PadConnecti
 
     private void showPad() {
         LinearLayout page = column();
-        page.setPadding(dp(15), dp(10), dp(15), dp(10));
-        LinearLayout header = new LinearLayout(this);
-        header.setGravity(Gravity.CENTER_VERTICAL);
-        LinearLayout identity = column();
-        label(identity, "Pocket Trackpad", 22, TEXT, true);
-        String state = ready ? (bluetooth != null ? "Bluetooth · " + bluetoothName : "Wi-Fi connected")
-                : bluetooth != null ? "Bluetooth pairing" : "Disconnected";
-        TextView status = label(identity, "●  " + state, 13, ready ? ACCENT : bluetooth != null ? MUTED : ERROR, true);
-        status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
-        header.addView(identity, new LinearLayout.LayoutParams(0, -2, 1));
-        header.addView(makeButton(ready || bluetooth != null ? "Disconnect" : "Connect", false, () -> {
-            if (!ready && bluetooth == null) { connections(); return; }
-            closeConnection();
-            resumePairing = false;
-            if (pairing != null) Arrays.fill(pairing.key, (byte) 0);
-            pairing = null;
-            addressDraft = codeDraft = note = "";
-            showPad();
-        }));
+        boolean wide = landscape();
+        page.setPadding(dp(14), dp(wide ? 3 : 12), dp(14), dp(wide ? 3 : 8));
         boolean focused = ready && preferences.getBoolean("focus", false);
-        if (!focused) page.addView(header, fullWidth());
-        space(page, 10);
+        if (!focused) {
+            LinearLayout header = new LinearLayout(this);
+            header.setGravity(Gravity.CENTER_VERTICAL);
+            addIcon(header, R.drawable.ic_tune, "Settings", this::showSettings, false);
+            String state = ready ? (bluetooth != null ? bluetoothName : "Wi-Fi connected")
+                    : bluetooth != null ? "Pairing…" : "Disconnected";
+            LinearLayout status = new LinearLayout(this);
+            status.setGravity(Gravity.CENTER);
+            GradientDrawable surface = shape(CARD, 25, EDGE);
+            status.setBackground(new RippleDrawable(ColorStateList.valueOf(TOUCH_WASH), surface, null));
+            View signal = new View(this);
+            signal.setBackground(shape(ready ? ACCENT : bluetooth != null ? MUTED : ERROR, 8, 0));
+            status.addView(signal, new LinearLayout.LayoutParams(dp(8), dp(8)));
+            TextView name = new TextView(this);
+            name.setText(state);
+            name.setSingleLine();
+            name.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            name.setTextSize(17);
+            name.setTextColor(TEXT);
+            name.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+            name.setPadding(dp(9), 0, dp(4), 0);
+            status.addView(name);
+            status.setPadding(dp(12), 0, dp(12), 0);
+            status.setContentDescription(state + ". Connection options");
+            status.setFocusable(true);
+            status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+            status.setOnClickListener(v -> connectionMenu());
+            LinearLayout.LayoutParams middle = new LinearLayout.LayoutParams(0, dp(48), 1);
+            middle.setMargins(dp(10), 0, dp(10), 0);
+            header.addView(status, middle);
+            addIcon(header, R.drawable.ic_guide, "Gesture guide", this::showGestures, false);
+            page.addView(header, fullWidth());
+            space(page, wide ? 4 : 12);
+        }
 
         pad = new PadView(this, this::send);
         applyOptions();
@@ -276,39 +301,103 @@ public final class MainActivity extends ComponentActivity implements PadConnecti
             button(page, "Choose paired computer", false, () -> chooseMac(getSystemService(BluetoothManager.class).getAdapter()));
             space(page, 8);
         }
-        page.addView(pad, new LinearLayout.LayoutParams(-1, 0, 1));
+        FrameLayout surfaceArea = new FrameLayout(this);
+        surfaceArea.setMotionEventSplittingEnabled(false);
+        surfaceArea.addView(pad);
+        if (!focused) {
+            pad.reserveKeyboardCorner();
+            LinearLayout corner = new LinearLayout(this);
+            ImageButton key = addIcon(corner, R.drawable.ic_keys, "Keyboard", this::keys, false);
+            key.setEnabled(ready && bluetooth != null);
+            key.setAlpha(key.isEnabled() ? 1 : 0.5f);
+            surfaceArea.addView(corner, new FrameLayout.LayoutParams(dp(48), dp(48), Gravity.BOTTOM | Gravity.RIGHT));
+        }
+        page.addView(surfaceArea, new LinearLayout.LayoutParams(-1, 0, 1));
         space(page, 7);
 
         LinearLayout footer = new LinearLayout(this);
+        footer.setGravity(Gravity.CENTER);
         if (focused) {
-            rowButton(footer, "Exit focus", false, () -> {
+            footer.addView(makeButton("Exit focus", false, () -> {
                 preferences.edit().putBoolean("focus", false).apply();
                 showPad();
-            });
+            }));
         } else {
-            rowButton(footer, controls ? "Hide controls" : "Controls", false, () -> { controls = !controls; showPad(); });
-            rowButton(footer, "Settings", false, this::showSettings);
+            Button drawer = makeButton(controls ? "Close controls" : "Controls", false, () -> {
+                if (landscape()) showSheet("Mac controls", controlPanel());
+                else { controls = !controls; showPad(); }
+            });
+            drawer.setCompoundDrawablesRelativeWithIntrinsicBounds(controls ? R.drawable.ic_down : R.drawable.ic_up, 0, 0, 0);
+            drawer.setCompoundDrawablePadding(dp(8));
+            footer.addView(drawer);
         }
         page.addView(footer, fullWidth());
-        if (controls && !focused) {
-            space(page, 6);
-            LinearLayout row = new LinearLayout(this);
-            rowButton(row, "‹ Back", false, () -> send(Wire.ACTION, Wire.BACK, 0)).setEnabled(ready);
-            rowButton(row, "Forward ›", false, () -> send(Wire.ACTION, Wire.FORWARD, 0)).setEnabled(ready);
-            page.addView(row, fullWidth());
-            LinearLayout actions = new LinearLayout(this);
-            rowButton(actions, "Gestures", false, this::showGestures);
-            if (ready && bluetooth != null && Build.VERSION.SDK_INT >= 28) {
-                rowButton(actions, "Keyboard", false, this::keys);
-                LinearLayout audio = new LinearLayout(this);
-                rowButton(audio, "Vol −", false, () -> bluetooth.media(2));
-                rowButton(audio, "Mute", false, () -> bluetooth.media(4));
-                rowButton(audio, "Vol +", false, () -> bluetooth.media(1));
-                page.addView(audio, fullWidth());
-            }
-            page.addView(actions, fullWidth());
+        if (controls && !focused && !wide) page.addView(controlPanel(), fullWidth());
+        setPage(page, 1200);
+    }
+
+    private boolean landscape() {
+        return getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE;
+    }
+
+    @Override public void onConfigurationChanged(Configuration configuration) {
+        super.onConfigurationChanged(configuration);
+        if (pad != null && pad.isAttachedToWindow()) {
+            pad.reset();
+            controls = false;
+            showPad();
         }
-        setPage(page, 950);
+    }
+
+    private void connectionMenu() {
+        if (!ready && bluetooth == null) { connections(); return; }
+        LinearLayout options = column();
+        button(options, ready ? "Disconnect" : "Cancel pairing", false, () -> {
+            dismissSheet();
+            closeConnection();
+            resumePairing = false;
+            if (pairing != null) Arrays.fill(pairing.key, (byte) 0);
+            pairing = null;
+            addressDraft = codeDraft = note = "";
+            showPad();
+        });
+        showSheet(ready ? "Connected computer" : "Bluetooth pairing", options);
+    }
+
+    private ImageButton addIcon(LinearLayout row, int resource, String label, Runnable action, boolean weighted) {
+        ImageButton icon = new ImageButton(this);
+        icon.setImageResource(resource);
+        icon.setContentDescription(label);
+        icon.setOnClickListener(v -> action.run());
+        icon.setBackground(new RippleDrawable(ColorStateList.valueOf(TOUCH_WASH), shape(CARD, 24, EDGE), null));
+        icon.setOnFocusChangeListener((v, hasFocus) -> icon.setBackground(new RippleDrawable(
+                ColorStateList.valueOf(TOUCH_WASH), shape(CARD, 24, hasFocus ? ACCENT : EDGE), null)));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(weighted ? 0 : dp(48),
+                dp(weighted ? 58 : 48), weighted ? 1 : 0);
+        if (weighted) lp.setMargins(dp(4), dp(6), dp(4), 0);
+        row.addView(icon, lp);
+        return icon;
+    }
+
+    private LinearLayout controlPanel() {
+        LinearLayout panel = column();
+        LinearLayout row = new LinearLayout(this);
+        ImageButton back = addIcon(row, R.drawable.ic_back, "Go back", () -> send(Wire.ACTION, Wire.BACK, 0), true);
+        ImageButton next = addIcon(row, R.drawable.ic_next, "Go forward", () -> send(Wire.ACTION, Wire.FORWARD, 0), true);
+        for (ImageButton arrow : new ImageButton[]{back, next}) {
+            arrow.setEnabled(ready);
+            arrow.setAlpha(ready ? 1 : 0.46f);
+        }
+        panel.addView(row, fullWidth());
+        if (ready && bluetooth != null && Build.VERSION.SDK_INT >= 28) {
+            LinearLayout audio = new LinearLayout(this);
+            space(panel, 6);
+            rowButton(audio, "Vol −", false, () -> { if (bluetooth != null) bluetooth.media(2); });
+            rowButton(audio, "Mute", false, () -> { if (bluetooth != null) bluetooth.media(4); });
+            rowButton(audio, "Vol +", false, () -> { if (bluetooth != null) bluetooth.media(1); });
+            panel.addView(audio, fullWidth());
+        }
+        return panel;
     }
 
     private void send(int command, int x, int y) {
@@ -353,6 +442,11 @@ public final class MainActivity extends ComponentActivity implements PadConnecti
         dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
         dialog.getWindow().setGravity(Gravity.BOTTOM);
         dialog.getWindow().setLayout(-1, -2);
+        showProtected(dialog);
+    }
+
+    private void showProtected(Dialog dialog) {
+        dialog.getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
         dialog.show();
     }
 
@@ -399,7 +493,7 @@ public final class MainActivity extends ComponentActivity implements PadConnecti
                         .setNegativeButton("Disconnect", (d,w) -> { closeConnection(); showPad(); })
                         .setCancelable(false).create();
                 sheet = confirm;
-                confirm.show();
+                showProtected(confirm);
             }
             @Override public void connected(String name) {
                 dismissSheet();
@@ -473,17 +567,19 @@ public final class MainActivity extends ComponentActivity implements PadConnecti
 
     private void showGestures() {
         if (pad != null) pad.reset();
-        new AlertDialog.Builder(this).setTitle("Trackpad gestures")
+        showProtected(new AlertDialog.Builder(this).setTitle("Trackpad gestures")
                 .setMessage("One finger\nMove to point. Tap to click. Tap, then touch again and move to drag.\n\n"
                         + "Two fingers\nTap for right-click. Double-tap for smart zoom. Slide to scroll. "
                         + "Pinch or spread to zoom. With the Wi-Fi receiver, twist to rotate in Preview. "
                         + "Swipe quickly sideways for page history. Swipe left from the pad’s right edge for Notification Center.\n\n"
-                        + "Three or four fingers\nSwipe up for Mission Control, down for App Exposé, "
-                        + "and sideways to change Spaces. Tap with three fingers to look up text.\n\n"
-                        + "Four fingers\nPinch for Spotlight over Bluetooth or the app launcher over Wi-Fi. Spread to show the desktop.\n\n"
+                        + "Landscape · three fingers\nSlide to drag, then lift to release. Tap to look up text. "
+                        + "With three-finger drag turned off, three-finger swipes also control windows and Spaces.\n\n"
+                        + "Landscape · four fingers\nSwipe up for Mission Control, down for App Exposé, or sideways to switch Spaces.\n\n"
+                        + "Landscape · four or five fingers\nGather your fingertips inward for Spotlight over Bluetooth "
+                        + "or the app launcher over Wi-Fi. Spread outward to show the desktop.\n\n"
                         + "Some actions depend on the active Mac app or its keyboard shortcuts. "
                         + "See the project’s setup guide for the exact mappings.")
-                .setPositiveButton("Done", null).show();
+                .setPositiveButton("Done", null).create());
     }
 
     private void showSettings() {
@@ -494,8 +590,8 @@ public final class MainActivity extends ComponentActivity implements PadConnecti
         option(options, "Focus mode when connected", "focus", false);
         option(options, "Natural scrolling", "natural", true);
         option(options, "Quick horizontal swipes change pages", "pageSwipes", true);
-        option(options, "Three-finger drag", "threeDrag", false);
-        label(options, "With three-finger drag on, use four fingers for desktop swipes.", 14, MUTED, false);
+        option(options, "Three-finger drag", "threeDrag", true);
+        label(options, "Rotate to landscape for three-, four- and five-finger gestures.", 14, MUTED, false);
         space(options, 12);
         label(options, "Pointer speed", 16, TEXT, true);
         SeekBar speed = new SeekBar(this);
@@ -514,6 +610,7 @@ public final class MainActivity extends ComponentActivity implements PadConnecti
         });
         options.addView(speed, fullWidth());
         button(options, "Gesture guide", false, () -> { dismissSheet(); showGestures(); });
+        button(options, "Check for updates", false, () -> { dismissSheet(); updates.check(true); });
         showSheet("Trackpad settings", options);
     }
 
@@ -534,7 +631,7 @@ public final class MainActivity extends ComponentActivity implements PadConnecti
 
     private void applyOptions() {
         if (pad == null) return;
-        pad.configure(preferences.getBoolean("natural", true), preferences.getBoolean("threeDrag", false),
+        pad.configure(preferences.getBoolean("natural", true), preferences.getBoolean("threeDrag", true),
                 preferences.getBoolean("pageSwipes", true),
                 0.65f + preferences.getInt("speed", 7) * 0.1f);
     }

@@ -28,6 +28,7 @@ public final class Smoke {
         List<Integer> events = new ArrayList<>();
         GestureTracker gestures = new GestureTracker((command, x, y) ->
                 events.add(command == Wire.ACTION ? 100 + x : command));
+        gestures.setLandscape(true);
         gestures.begin(1000, 60, 30, 300);
         gestures.lift(1050, 60, 30, 0, 0, true);
         gestures.begin(1150, 60, 30, 300);
@@ -81,6 +82,42 @@ public final class Smoke {
         gestures.move(7050, 100, 50, 28, 0);
         gestures.cancel();
         check(events.equals(Arrays.asList(100 + Wire.APPS)), "Four-finger pinch");
+        events.clear();
+        gestures.configure(true, true, true, 1);
+        gestures.begin(8000, 80, 100, 500);
+        gestures.moreFingers(8010, 3, 110, 100, 40, 0);
+        gestures.move(8030, 130, 105, 40, 0);
+        gestures.setLandscape(false);
+        gestures.lift(8090, 120, 100, 0, 0, true);
+        check(events.equals(Arrays.asList(Wire.DRAG_START, Wire.MOVE, Wire.DRAG_END)),
+                "Rotating releases a landscape drag without clicking");
+        events.clear();
+
+        for (int count = 3; count <= 5; count++) {
+            gestures.begin(9000, 40, 50, 300);
+            for (int n = 2; n <= count; n++) gestures.moreFingers(9010 + n, n, 80, 50, 40, 0);
+            gestures.move(9040, 160, 90, 19, 0);
+            gestures.lift(9050, 160, 90, 19, 0, false);
+            gestures.move(9060, 250, 90, 0, 0);
+            gestures.lift(9070, 250, 90, 0, 0, true);
+            gestures.advance(9400);
+        }
+        check(events.isEmpty(), "Portrait blocks multi-finger actions through the final lift");
+        gestures.setLandscape(true);
+        for (int direction : new int[]{-1, 1}) {
+            gestures.begin(10000, 40, 50, 500);
+            for (int n = 2; n <= 5; n++) gestures.moreFingers(10000 + n * 10, n, 150, 100, 60, 0);
+            gestures.move(10100, 150, 100, 60 + direction * 24, 0);
+            gestures.move(10150, 150, 100, 60 + direction * 30, 0);
+            gestures.lift(10200, 150, 100, 60 + direction * 30, 0, true);
+        }
+        check(events.equals(Arrays.asList(100 + Wire.APPS, 100 + Wire.DESKTOP)), "One action per five-finger scoop or spread");
+        events.clear();
+        gestures.begin(11000, 40, 50, 500);
+        gestures.moreFingers(11030, 4, 150, 100, 60, 0);
+        gestures.move(11100, 90, 100, 60, 0);
+        gestures.lift(11150, 90, 100, 60, 0, true);
+        check(events.equals(Arrays.asList(100 + Wire.SPACE_RIGHT)), "Four-finger Space swipe with drag enabled");
         System.out.println("Android recognizer: tap, drag, scroll, swipe, zoom and rotate passed");
     }
 

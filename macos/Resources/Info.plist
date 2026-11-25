@@ -8,11 +8,15 @@
     <key>CFBundleIdentifier</key><string>io.github.ruvp20.pockettrackpad</string>
     <key>CFBundleName</key><string>Pocket Trackpad</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>0.2.0</string>
-    <key>CFBundleVersion</key><string>2</string>
+    <key>CFBundleShortVersionString</key><string>0.3.0</string>
+    <key>CFBundleVersion</key><string>3</string>
     <key>LSMinimumSystemVersion</key><string>13.0</string>
     <key>NSHighResolutionCapable</key><true/>
     <key>NSLocalNetworkUsageDescription</key>
     <string>Pair with your Android phone to receive trackpad gestures over Wi-Fi.</string>
+    <key>SUFeedURL</key><string>https://github.com/ruvp20/pocket-trackpad/releases/latest/download/appcast.xml</string>
+    <key>SUPublicEDKey</key><string>KtSy3AL637qPxeNoRQxvAA1k30jjMqlsKCPVM4aH6pk=</string>
+    <key>SUEnableAutomaticChecks</key><true/>
+    <key>SUAutomaticallyUpdate</key><true/>
 </dict>
 </plist>

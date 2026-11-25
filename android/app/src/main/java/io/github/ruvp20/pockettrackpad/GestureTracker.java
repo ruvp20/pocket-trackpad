@@ -18,9 +18,16 @@ final class GestureTracker {
     private float startX, startY, lastX, lastY, startSpan, startAngle, maximumTravel;
     private float lastTapX, lastTapY, scaleSent, padWidth;
     private boolean tapping, mayDrag, natural = true, threeFingerDrag, pageSwipes = true;
+    private boolean landscape;
     private float speed = 1.35f;
 
     GestureTracker(Output output) { this.output = output; }
+
+    void setLandscape(boolean enabled) {
+        if (enabled == landscape) return;
+        cancel(); // Release any held button before the window changes orientation.
+        landscape = enabled;
+    }
 
     void configure(boolean natural, boolean threeFingerDrag, boolean pageSwipes, float speed) {
         this.natural = natural;
@@ -40,7 +47,11 @@ final class GestureTracker {
     }
 
     void moreFingers(long now, int count, float x, float y, float span, float angle) {
-        if (mode == Mode.FINISHED || count > 4) {
+        if (count > 5 || (count >= 3 && !landscape)) {
+            cancel();
+            return;
+        }
+        if (mode == Mode.FINISHED) {
             finishCluster();
             tapping = false;
             return;
@@ -115,6 +126,12 @@ final class GestureTracker {
                 boolean edgeSwipe = startX > padWidth - 43 && dx < 0;
                 boolean pageSwipe = pageSwipes && Math.abs(dx) > Math.abs(dy) * 2;
                 mode = edgeSwipe || pageSwipe ? Mode.HORIZONTAL : Mode.SCROLL;
+            }
+        } else if (fingers == 5) {
+            // A scoop changes the radius of the cluster. Translating the whole hand should do nothing.
+            if (Math.abs(scale) >= 0.20f && (Math.abs(scale) * startSpan) > Math.max(8, travel * 0.8f)) {
+                action(scale < 0 ? Wire.APPS : Wire.DESKTOP);
+                mode = Mode.SWIPE;
             }
         } else if (fingers == 3 || fingers == 4) {
             if (fingers == 3 && threeFingerDrag && travel >= 8) {

@@ -1,11 +1,14 @@
 import AppKit
 import SwiftUI
+import Sparkle
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    let updates = SPUStandardUpdaterController(startingUpdater: false, updaterDelegate: nil, userDriverDelegate: nil)
     private var model: MacModel?
     private var window: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        updates.startUpdater()
         let model = MacModel()
         self.model = model
         let view = NSHostingController(rootView: MacView(model: model))
@@ -30,6 +33,9 @@ let menu = NSMenu()
 let appItem = NSMenuItem()
 menu.addItem(appItem)
 let appMenu = NSMenu()
+let check = appMenu.addItem(withTitle: "Check for Updates…", action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)), keyEquivalent: "")
+check.target = delegate.updates
+appMenu.addItem(.separator())
 appMenu.addItem(withTitle: "Quit Pocket Trackpad", action: #selector(NSApplication.terminate(_:)),
                 keyEquivalent: "q")
 appItem.submenu = appMenu

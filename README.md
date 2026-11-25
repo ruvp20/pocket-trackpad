@@ -4,27 +4,38 @@ Use your Android phone to point, click, scroll, drag and switch Spaces on a Mac.
 
 ## Install and pair
 
-Download the [Android APK](https://github.com/ruvp20/pocket-trackpad/releases/download/v0.2.0/PocketTrackpad-Android.apk) on your phone and open it. Allow installation from the browser or file manager if Android asks. This preview is signed with the same debug key as v0.1.0.
+Download the [Android APK](https://github.com/ruvp20/pocket-trackpad/releases/download/v0.3.0/PocketTrackpad-Android.apk) on your phone and open it. Allow installation from the browser or file manager if Android asks. This preview is signed with the same debug key as v0.1.0.
 
 ### Bluetooth
 
 1. Use Android 9 or later on a phone that supports Android’s Bluetooth HID Device profile. Turn on Bluetooth on both devices and open **System Settings → Bluetooth** on the Mac.
-2. On Android tap **Connect → Pair with Bluetooth**. Allow **Nearby devices** if prompted.
+2. On Android tap the **Disconnected** status pill, then **Pair with Bluetooth**. Allow **Nearby devices** if prompted.
 3. If the Mac is already listed, tap its name. For first-time pairing, tap **Make phone visible**, allow the system prompt, and select your phone under **Nearby Devices** on the Mac. Confirm the system pairing prompts and approve the computer in Pocket Trackpad.
 4. Look for **Bluetooth · [computer name]** on the phone, then slide one finger on the pad. If the devices paired but the pad is still waiting, tap **Choose paired computer** and select the Mac. Keep Pocket Trackpad in the foreground during use.
 
-The Mac receives standard Bluetooth mouse, keyboard and volume reports directly. The Mac companion and Accessibility permission are only needed for Wi-Fi. In Bluetooth mode, **Controls → Keyboard** types US-layout text and offers Return, Escape, Tab, Space and Delete. **Controls** also includes volume and mute buttons.
+The Mac receives standard Bluetooth mouse, keyboard and volume reports directly. The Mac companion and Accessibility permission are only needed for Wi-Fi. In Bluetooth mode, the **Keyboard** button types US-layout text and offers Return, Escape, Tab, Space and Delete. **Controls** also includes volume and mute buttons.
 
 ### Wi-Fi
 
-1. Use Android 7 or later and macOS 13 or later. Download the [Mac receiver ZIP](https://github.com/ruvp20/pocket-trackpad/releases/download/v0.2.0/PocketTrackpad-macOS.zip), extract it, move **Pocket Trackpad.app** to Applications and open it. The universal Mac preview is ad-hoc signed. [Apple’s first-launch instructions](https://support.apple.com/en-us/102445)
+1. Use Android 7 or later and macOS 13 or later. Download the [Mac receiver ZIP](https://github.com/ruvp20/pocket-trackpad/releases/download/v0.3.0/PocketTrackpad-macOS.zip), extract it, move **Pocket Trackpad.app** to Applications and open it. The universal Mac preview is ad-hoc signed. [Apple’s first-launch instructions](https://support.apple.com/en-us/102445)
 2. Put both devices on the same local network. On the Mac select **Wi-Fi**, open **Accessibility** settings from the receiver, and grant Pocket Trackpad access. Allow incoming connections if the firewall asks.
 3. If multiple network addresses appear, select the address of the Wi-Fi or Ethernet interface on your phone’s network. The QR updates immediately.
-4. On Android tap **Connect → Wi-Fi · scan or enter code** and scan the Mac QR, or enter the displayed IPv4 address and pairing code. Keep the receiver open.
+4. On Android tap the **Disconnected** status pill, then **Wi-Fi · scan or enter code** and scan the Mac QR, or enter the displayed IPv4 address and pairing code. Keep the receiver open.
+
+## Automatic updates
+
+Install v0.3.0 or later once on each platform. Both apps check this repository’s latest stable GitHub release. Prereleases are skipped.
+
+- Android checks on opening or returning to the app, at most once per hour per session. **Settings → Check for updates** checks immediately. Tap **Download** when a newer version is offered, allow installation from Pocket Trackpad if prompted, and confirm Android’s installer. The app verifies the release APK digest, package name and version. Android enforces signing-key continuity when upgrading.
+- On macOS, keep the receiver in Applications and open it regularly. Sparkle checks periodically while it runs and verifies downloaded updates with the embedded Ed25519 public key. **Pocket Trackpad → Check for Updates…** checks immediately. Follow the updater if it asks to install or relaunch.
+
+### Publishing future updates
+
+Increment the Android version code and Mac bundle version, and give both apps the same new three-part version. Build Android with the original APK signing key and build the Mac receiver with the script below. Run `./scripts/package-updates.sh` on the release Mac. It uses the Sparkle key stored in the login Keychain under account `io.github.ruvp20.pockettrackpad`. Back up the signing keys securely to preserve upgrade continuity. Attach **PocketTrackpad-Android.apk**, **PocketTrackpad-macOS.zip**, and **appcast.xml** from the generated release directory to the matching GitHub tag (for example, `v0.3.0`). Publish those three assets together as the latest stable release.
 
 ## Gestures
 
-Bluetooth and Wi-Fi share the mappings below. Bluetooth scrolls in wheel steps and opens Spotlight for the four-finger pinch. Preview-only rotation uses the Wi-Fi receiver.
+One- and two-finger actions work in either orientation. Rotate the phone to landscape for every three-, four- or five-finger action. Three-finger drag is enabled by default. Turn it off in Settings to use three-finger swipes for Mission Control and Spaces. Bluetooth and Wi-Fi share the mappings below. Bluetooth scrolls in wheel steps and opens Spotlight for an inward four- or five-finger scoop. Preview-only rotation uses the Wi-Fi receiver.
 
 | Android gesture | Mac action |
 | --- | --- |
@@ -41,8 +52,8 @@ Bluetooth and Wi-Fi share the mappings below. Bluetooth scrolls in wheel steps a
 | Swipe left or right with three or four fingers | Move to the next or previous Space through **Control–→/←**. |
 | Tap with three fingers | Look Up through **Control–⌘–D** in supported apps. |
 | Move with three fingers with **Three-finger drag** enabled | Click and drag. Use four fingers for desktop swipes in this mode. |
-| Pinch with four fingers | Open Launchpad on supported macOS versions, or Spotlight’s Applications view on newer macOS versions. |
-| Spread with four fingers | Show Desktop through **F11** if that shortcut is enabled. |
+| Gather four or five fingertips inward | Open Launchpad on supported macOS versions, or Spotlight’s Applications view on newer macOS versions. |
+| Spread four or five fingertips outward | Show Desktop through **F11** if that shortcut is enabled. |
 
 For **Notification Center**, set its shortcut to **Control–Option–N** in **System Settings → Keyboard → Keyboard Shortcuts → Mission Control**. Enable **Show Desktop → F11** there if needed. Enable the **Move left/right a space** shortcuts in the same panel and create multiple Spaces before testing horizontal desktop swipes. With a customized keyboard layout or shortcut configuration, some mappings may differ. See [Apple's trackpad guide](https://support.apple.com/en-in/102482) and [Mac keyboard shortcuts](https://support.apple.com/en-ie/102650).
 
@@ -69,6 +80,10 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
 Run `./scripts/test.sh` from the repository root on macOS with a JDK available. It checks the gesture recognizer and connects the Android app's Java networking code to the Swift receiver over loopback.
+
+## Screen capture on Android
+
+Pocket Trackpad marks the trackpad, pairing screens, QR camera and app dialogs as secure windows. Android blocks their content from standard screenshots and screen recordings. A manufacturer’s three-finger screenshot shortcut can still intercept the touch before the app receives it. If dragging opens a screenshot prompt, search your phone settings for **three-finger screenshot** and turn it off or exclude Pocket Trackpad if your phone offers app exceptions. [Android secure-window documentation](https://developer.android.com/security/fraud-prevention/activities)
 
 ## Pairing and troubleshooting
 
